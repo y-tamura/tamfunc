@@ -672,7 +672,7 @@ def extract_short_events(times,times_long,length_criterion,int_limit,ratio_event
     return periods_selected
 
 def xr_calc_vorticity(u,v,rad_earth=6371e3):
-    """calculate vorticity from u and v
+    """calculate vorticity from u and v in single precision
 
     Args:
         u (xr.DataArray): zonal velocity [m/s]
