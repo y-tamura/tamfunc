@@ -12,7 +12,6 @@ setup(
         'scipy'
     ],
     author='y-tamura',
-    description='Python package for plotting a figure created by ytamura. Most of functions are for geographical plotting.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     url='https://github.com/y-tamura/tamfunc',
