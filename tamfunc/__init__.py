@@ -1,0 +1,1 @@
+from tamfunc.tamfunc import *
