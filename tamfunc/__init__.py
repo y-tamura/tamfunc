@@ -1,1 +1,1 @@
-from tamfunc.tamfunc import *
+from .tamfunc import *
