@@ -7,10 +7,8 @@ setup(
     install_requires=[
         'xarray',
         'numpy',
-        'datetime',
         'dask',
         'cftime',
-        'string',
         'scipy'
     ],
     author='y-tamura',
