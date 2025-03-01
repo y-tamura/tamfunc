@@ -689,8 +689,8 @@ def xr_calc_vorticity(u,v,rad_earth=6371e3):
     dlon=lon_rad[1]-lon_rad[0]
     
     # Calculate the grid spacing (assuming regular grid)
-    dx = rad_earth * np.cos(lat_rad) * (dlon) * xr.ones_like(u.lon)
-    dy = rad_earth * (dlat) * xr.ones_like(u.lat)
+    dx = (rad_earth * np.cos(lat_rad) * dlon * xr.ones_like(u.lon)).astype(np.float32)
+    dy = (rad_earth * dlat * xr.ones_like(u.lat)).astype(np.float32)
     
     # Calculate derivatives using central difference
     du_dy = (u.shift(lat=-1) - u.shift(lat=1)) / (2 * dy)
