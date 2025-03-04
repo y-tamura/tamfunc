@@ -701,6 +701,15 @@ def xr_calc_vorticity(u,v,rad_earth=6371e3):
     vorticity=vorticity.assign_attrs({'units':'1/s'})
     return vorticity
 
+def xr_xdev(var,lat,lon,xdim="lon",rad_earth=6371e3):
+    lat_rad = np.deg2rad(lat)
+    lon_rad = np.deg2rad(lon)
+    dlat=lat_rad[1]-lat_rad[0]
+    dlon=lon_rad[1]-lon_rad[0]
+    
+    dx = (rad_earth * np.cos(lat_rad) * dlon * xr.ones_like(var[xdim])).astype(np.float32)
+    return (var.shift({xdim:-1}) - var.shift({xdim:1})) / (2 * dx)
+
 def np_calculate_vorticity(u, v, lat, lon, rad_earth=6371e3):
     """
     Calculate the vorticity from u and v wind components using central difference.
