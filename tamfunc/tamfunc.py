@@ -710,7 +710,7 @@ def xr_xdev(var,lat,lon,xdim="lon",rad_earth=6371e3):
     dx = (rad_earth * np.cos(lat_rad) * dlon * xr.ones_like(var[xdim])).astype(np.float32)
     return (var.shift({xdim:-1}) - var.shift({xdim:1})) / (2 * dx)
 
-def xr_ydev(var,lat,lon,ydim="lat",rad_earth=6371e3):
+def xr_ydev(var,lat,ydim="lat",rad_earth=6371e3):
     lat_rad = np.deg2rad(lat)
     dlat=lat_rad[1]-lat_rad[0]
     
