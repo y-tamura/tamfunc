@@ -379,7 +379,7 @@ def detrend(y_da,key="time"):
     x_da = xr.DataArray(np.arange(len(y_da[key])),
                     coords=y_da[key].coords)
     # regcoef_da,tval,dof_da = get_trend(y_da,key)
-    regcoef_da = xr.cov(x_da,y_da,dim=key,ddof=0)/x_da.var(key)
+    regcoef_da = xr.cov(x_da,y_da,dim=key,ddof=0)/x_da.var(key,ddof=0)
     segment_da = y_da.mean(key) - regcoef_da*x_da.mean(key)
     return y_da - (regcoef_da*x_da + segment_da), regcoef_da*x_da + segment_da
 
@@ -403,8 +403,8 @@ def rm_monthlyclim(var):
     clim = var.groupby('time.month').mean('time')
     return var.groupby('time.month') - clim
 
-def calc_anom(var):
-    var_det,trend = detrend(var)
+def calc_anom(var,dim="time"):
+    var_det,trend = detrend(var,dim)
     return rm_monthlyclim(var_det)
 
 def detrend_dask(y_da, dim="time"):
