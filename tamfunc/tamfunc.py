@@ -383,17 +383,20 @@ def detrend(y_da,key="time"):
     segment_da = y_da.mean(key) - regcoef_da*x_da.mean(key)
     return y_da - (regcoef_da*x_da + segment_da), regcoef_da*x_da + segment_da
 
-def get_trend(y_da,key="time",xr_out=True):
+def get_trend(y_da,key="time",xr_out=True,tval=True):
     ''' 
-    Purpose: remove linear trend
+    Purpose: obtain linear trend
     How to: make x_da (simple number array which has "key" dims)
     and regress y_da to x_da
     '''
     x_da = xr.DataArray(np.arange(len(y_da[key])),
                     coords=y_da[key].coords)
-    dof_da=xr_eff_dof_hrz(x_da,y_da,key)
-    trend,tval=xr_regression(x_da,y_da,dof_da,key,xr_out)#xr.cov(x_da,y_da,dim=key,ddof=0)/x_da.var(key)
-    return trend,tval,dof_da
+    if tval==True:
+        dof_da=xr_eff_dof_hrz(x_da,y_da,key)
+        trend,tval=xr_regression(x_da,y_da,dof_da,key,xr_out)#xr.cov(x_da,y_da,dim=key,ddof=0)/x_da.var(key)
+        return trend,tval,dof_da
+    else:
+        return xr.cov(x_da,y_da,dim=key,ddof=0)/x_da.var(key)
 
 def xr_trend(y_da,dim='time'):
     x_da=xr.DataArray(np.arange(len(y_da[dim])),coords={dim:y_da[dim].values})
