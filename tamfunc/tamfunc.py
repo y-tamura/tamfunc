@@ -399,8 +399,10 @@ def get_trend(y_da,key="time",xr_out=True,tval=True):
         return xr.cov(x_da,y_da,dim=key,ddof=0)/x_da.var(key)
 
 def xr_trend(y_da,dim='time'):
+    """calculate trend per dim unit
+    """
     x_da=xr.DataArray(np.arange(len(y_da[dim])),coords={dim:y_da[dim].values})
-    return xr.cov(y_da,x_da,dim=dim,ddof=0)/x_da.var(dim)*len(x_da)
+    return xr.cov(y_da,x_da,dim=dim,ddof=0)/x_da.var(dim)
 
 def rm_monthlyclim(var):
     clim = var.groupby('time.month').mean('time')
