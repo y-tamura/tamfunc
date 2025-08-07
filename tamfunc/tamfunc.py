@@ -521,9 +521,9 @@ def uv_g(ssh_da,):
     lon = ssh_da.lon.values
     dlon = np.deg2rad(lon[1]-lon[0])
     dlat = lat[1]-lat[0]
-    Omega = 7.292*10**-5 # [rad]
-    R = 6371*10**3 # [m]
-    g = 9.81
+    Omega = np.float32(7.292*10**-5) # [rad]
+    R = np.float32(6371*10**3) # [m]
+    g = np.float32(9.81)
     coriolis_param = 2*Omega*np.sin(lat)
     dh_dx = (ssh[:,:,2:] - ssh[:,:,:-2])/(R*np.cos(lat.reshape((1,len(lat),1)))*2*dlon)
     dh_dy = (ssh[:,2:,:] - ssh[:,:-2,:])/(R*2*dlat)
