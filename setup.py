@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='tamfunc',
-    version='0.5',
+    version='1.0',
     packages=find_packages(),
     install_requires=[
         'xarray',
