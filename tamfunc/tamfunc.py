@@ -516,9 +516,9 @@ def w_area(da,ndims=3,lataxis=1):
     return var_cos_da
 #
 def uv_g(ssh_da,):
-    ssh = ssh_da.values
+    ssh = ssh_da.values.astype(np.float32)
     lat = np.deg2rad(ssh_da.lat.values)
-    lon = ssh_da.lon.values
+    lon = ssh_da.lon.values.astype(np.float32)
     dlon = np.deg2rad(lon[1]-lon[0])
     dlat = lat[1]-lat[0]
     Omega = np.float32(7.292*10**-5) # [rad]
