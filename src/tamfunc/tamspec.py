@@ -18,6 +18,19 @@ def xr_power_spectrum(timeseries,deltat,ave_width=1,ndims=1,axis=0):
         return power_ave
     else:
         return power
+def np_power_spectrum(timeseries,deltat,ave_width):
+    N=len(timeseries)
+    hannwin = windows.hann(N)
+    power = 2*np.abs(np.fft.fft(timeseries*hannwin)[:N//2])**2*(deltat/N)*8/3
+    power[0] /= 2
+    if ave_width>1:
+        power_ave = np.zeros_like(power)
+        power_ave[:ave_width//2] = np.nan
+        power_ave[-(ave_width//2):] = np.nan
+        power_ave[ave_width//2:-(ave_width//2)] = np.convolve(power,np.ones(ave_width)/ave_width,'valid')
+        return power_ave
+    else:
+        return power
 def red_power_spectrum(timeseries,deltat,freq):
     r1 = np.corrcoef(timeseries[1:],timeseries[:-1])[0,1]
     var_w = np.var(timeseries).values*(1-r1**2)
