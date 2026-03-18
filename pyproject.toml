@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tamfunc"               
+version = "0.1.2"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+  { name = "Yukito Tamura" }
+]
+[tool.hatch.build.targets.wheel]
+packages = ["src/tamfunc", "src/tamspec"]
+dependencies = [
+  "numpy",
+  "xarray",
+  "cftime",
+  "scipy",
+  "dask",
+]
+
+[project.urls]
+Homepage = "https://github.com/y-tamura/tamfunc"
