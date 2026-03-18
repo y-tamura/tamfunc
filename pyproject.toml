@@ -12,7 +12,7 @@ authors = [
   { name = "Yukito Tamura" }
 ]
 [tool.hatch.build.targets.wheel]
-packages = ["src/tamfunc", "src/tamspec", "src/tamfunc"]
+packages = ["src/tamfunc", "src/tamspec", "src/load_cmip6"]
 dependencies = [
   "numpy",
   "xarray",
