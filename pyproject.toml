@@ -7,12 +7,12 @@ name = "tamfunc"
 version = "0.2.0"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 authors = [
   { name = "Yukito Tamura" }
 ]
 [tool.hatch.build.targets.wheel]
-packages = ["src/tamfunc", "src/tamspec"]
+packages = ["src/tamfunc", "src/tamspec", "src/tamfunc"]
 dependencies = [
   "numpy",
   "xarray",
