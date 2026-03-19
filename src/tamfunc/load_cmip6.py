@@ -78,7 +78,7 @@ def open_cmip6regrid(
     return xr.open_mfdataset(
         paths,
         combine="by_coords",
-        parallel=True,
+        parallel=False,
     )[[var]]
 
 
