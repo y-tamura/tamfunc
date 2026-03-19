@@ -9,8 +9,9 @@ import xarray as xr
 ROOT = Path("/nagoya/HighResMIP/Regrid")
 DEFAULT_VAR = "zos"
 MEAN_VARIANT_LABEL = "variant-mean"
+MEAN_VERSION_TAG = "v00000000"
 
-#%%
+
 def resolve_variant_dir(base: Path, variant_label: str | None = None) -> Path:
     if variant_label is not None:
         variant_dir = base / variant_label
@@ -37,6 +38,27 @@ def resolve_variant_dir(base: Path, variant_label: str | None = None) -> Path:
     return variant_dirs[0]
 
 
+def collect_paths_for_variant(variant_dir: Path, grid: str) -> list[Path]:
+    if variant_dir.name == MEAN_VARIANT_LABEL:
+        version_dirs = sorted(variant_dir.glob(f"*/{MEAN_VERSION_TAG}"))
+        if not version_dirs:
+            raise FileNotFoundError(
+                f"{MEAN_VARIANT_LABEL} exists under {variant_dir.parent}, but {MEAN_VERSION_TAG} was not found. "
+                "Recreate the averages or remove stale variant-mean directories."
+            )
+    else:
+        version_dirs = []
+        for grid_dir in sorted(path for path in variant_dir.iterdir() if path.is_dir()):
+            candidates = sorted(path for path in grid_dir.iterdir() if path.is_dir())
+            if candidates:
+                version_dirs.append(candidates[-1])
+
+    paths: list[Path] = []
+    for version_dir in version_dirs:
+        paths.extend(sorted(version_dir.glob(f"*_{grid}.nc")))
+    return paths
+
+
 #%%
 def open_cmip6regrid(
     model: str,
@@ -49,10 +71,10 @@ def open_cmip6regrid(
 ) -> xr.Dataset:
     base = root / exp / table / var / model
     variant_dir = resolve_variant_dir(base, variant_label=variant_label)
-    paths = sorted(variant_dir.rglob(f"*_{grid}.nc"))
+    paths = collect_paths_for_variant(variant_dir, grid=grid)
     if not paths:
         raise FileNotFoundError(f"no files matched under: {variant_dir} for grid={grid}")
-
+    print(f"opening {len(paths)} files for model {model}")
     return xr.open_mfdataset(
         paths,
         combine="by_coords",
