@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tamfunc"               
-version = "0.2.2"
+version = "0.2.3"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.13"

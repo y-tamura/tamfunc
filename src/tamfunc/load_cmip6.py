@@ -68,7 +68,7 @@ def open_cmip6regrid(
     table: str = "Omon",
     root: Path = ROOT,
     variant_label: str | None = None,
-) -> xr.Dataset:
+) -> xr.DataArray:
     base = root / exp / table / var / model
     variant_dir = resolve_variant_dir(base, variant_label=variant_label)
     paths = collect_paths_for_variant(variant_dir, grid=grid)
@@ -79,7 +79,7 @@ def open_cmip6regrid(
         paths,
         combine="by_coords",
         parallel=False,
-    )[[var]]
+    )[var]
 
 
 def open_cmip6regrid_many(
@@ -90,7 +90,7 @@ def open_cmip6regrid_many(
     table: str = "Omon",
     root: Path = ROOT,
     variant_label: str | None = None,
-) -> dict[str, xr.Dataset]:
+) -> dict[str, xr.DataArray]:
     return {
         model: open_cmip6regrid(
             model=model,
