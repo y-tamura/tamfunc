@@ -12,28 +12,43 @@ MEAN_VARIANT_LABEL = "variant-mean"
 MEAN_VERSION_TAG = "v00000000"
 
 
-def resolve_variant_dir(base: Path, variant_label: str | None = None) -> Path:
-    if variant_label is not None:
-        variant_dir = base / variant_label
-        if not variant_dir.is_dir():
-            raise FileNotFoundError(f"variant_label directory not found: {variant_dir}")
-        return variant_dir
-
-    mean_dir = base / MEAN_VARIANT_LABEL
-    if mean_dir.is_dir():
-        return mean_dir
-
+def original_variant_dirs(base: Path) -> list[Path]:
     variant_dirs = sorted(
         path for path in base.iterdir()
         if path.is_dir() and path.name != MEAN_VARIANT_LABEL
     )
     if not variant_dirs:
         raise FileNotFoundError(f"no variant directories found under: {base}")
+    return variant_dirs
+
+
+def resolve_variant_dir(
+    base: Path,
+    variant_label: str | None = None,
+    prefer_variant_mean: bool = True,
+) -> Path:
+    if variant_label is not None:
+        variant_dir = base / variant_label
+        if not variant_dir.is_dir():
+            raise FileNotFoundError(f"variant_label directory not found: {variant_dir}")
+        return variant_dir
+
+    if prefer_variant_mean:
+        mean_dir = base / MEAN_VARIANT_LABEL
+        if mean_dir.is_dir():
+            return mean_dir
+
+    variant_dirs = original_variant_dirs(base)
     if len(variant_dirs) > 1:
         names = ", ".join(path.name for path in variant_dirs)
+        fallback = (
+            f"Create {MEAN_VARIANT_LABEL} first or pass variant_label explicitly."
+            if prefer_variant_mean
+            else "Pass variant_label explicitly or use open_cmip6regrid_variants()."
+        )
         raise ValueError(
             f"multiple original variant_label directories remain under {base}: {names}. "
-            f"Create {MEAN_VARIANT_LABEL} first or pass variant_label explicitly."
+            f"{fallback}"
         )
     return variant_dirs[0]
 
@@ -68,18 +83,46 @@ def open_cmip6regrid(
     table: str = "Omon",
     root: Path = ROOT,
     variant_label: str | None = None,
+    prefer_variant_mean: bool = True,
 ) -> xr.DataArray:
     base = root / exp / table / var / model
-    variant_dir = resolve_variant_dir(base, variant_label=variant_label)
+    variant_dir = resolve_variant_dir(
+        base,
+        variant_label=variant_label,
+        prefer_variant_mean=prefer_variant_mean,
+    )
     paths = collect_paths_for_variant(variant_dir, grid=grid)
     if not paths:
         raise FileNotFoundError(f"no files matched under: {variant_dir} for grid={grid}")
-    print(f"opening {len(paths)} files for model {model}")
+    print(f"opening {len(paths)} files for model {model}, variant {variant_dir.name}")
     return xr.open_mfdataset(
         paths,
         combine="by_coords",
         parallel=False,
     )[var]
+
+
+def open_cmip6regrid_variants(
+    model: str,
+    var: str = DEFAULT_VAR,
+    grid: str = "r360x180",
+    exp: str = "hist-1950",
+    table: str = "Omon",
+    root: Path = ROOT,
+) -> dict[str, xr.DataArray]:
+    base = root / exp / table / var / model
+    return {
+        variant_dir.name: open_cmip6regrid(
+            model=model,
+            var=var,
+            grid=grid,
+            exp=exp,
+            table=table,
+            root=root,
+            variant_label=variant_dir.name,
+        )
+        for variant_dir in original_variant_dirs(base)
+    }
 
 
 def open_cmip6regrid_many(
@@ -90,6 +133,7 @@ def open_cmip6regrid_many(
     table: str = "Omon",
     root: Path = ROOT,
     variant_label: str | None = None,
+    prefer_variant_mean: bool = True,
 ) -> dict[str, xr.DataArray]:
     return {
         model: open_cmip6regrid(
@@ -100,6 +144,7 @@ def open_cmip6regrid_many(
             table=table,
             root=root,
             variant_label=variant_label,
+            prefer_variant_mean=prefer_variant_mean,
         )
         for model in models
     }
