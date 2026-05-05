@@ -162,6 +162,7 @@ def require_grid(ds: xr.Dataset, ny: int, nx: int, var: str = DEFAULT_VAR) -> xr
 #%%-----------------------------------------------------------------
 # Open Jet latitude
 #------------------------------------------------------------------
+VARIANT_MEAN_LABEL = "variant-mean"
 def jetlat_path(exp: str, current: str, model: str, variant_label: str) -> str:
     fname = f"{current}_latitude_gflow_{model}_{exp}_{variant_label}_720x1440.nc"
     return f"{ROOT}/{exp}/JetLatitude/{current}/{model}/{variant_label}/{fname}"
