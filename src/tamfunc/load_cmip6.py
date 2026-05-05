@@ -75,6 +75,8 @@ def collect_paths_for_variant(variant_dir: Path, grid: str) -> list[Path]:
 
 
 #%%
+import os
+import numpy as np
 def open_cmip6regrid(
     model: str,
     var: str = DEFAULT_VAR,
@@ -157,3 +159,92 @@ def require_grid(ds: xr.Dataset, ny: int, nx: int, var: str = DEFAULT_VAR) -> xr
     if got != expected:
         raise ValueError(f"expected grid {ny}x{nx}, got {got[0]}x{got[1]}")
     return ds
+#%%-----------------------------------------------------------------
+# Open Jet latitude
+#------------------------------------------------------------------
+def jetlat_path(exp: str, current: str, model: str, variant_label: str) -> str:
+    fname = f"{current}_latitude_gflow_{model}_{exp}_{variant_label}_720x1440.nc"
+    return f"{ROOT}/{exp}/JetLatitude/{current}/{model}/{variant_label}/{fname}"
+
+
+def iter_variant_labels(exp: str, current: str, model: str, variant_mean: bool = False) -> list[str]:
+    model_dir = f"{ROOT}/{exp}/JetLatitude/{current}/{model}"
+    if not os.path.isdir(model_dir):
+        return []
+    variant_labels = sorted(
+        variant_label
+        for variant_label in os.listdir(model_dir)
+        if os.path.isdir(f"{model_dir}/{variant_label}") and variant_label != "old"
+    )
+    if variant_mean:
+        return [variant_label for variant_label in variant_labels if variant_label == VARIANT_MEAN_LABEL]
+    return [variant_label for variant_label in variant_labels if variant_label != VARIANT_MEAN_LABEL]
+
+
+def open_current_model(
+    exp: str,
+    current: str,
+    model: str,
+    variant_mean: bool = False,
+) -> xr.DataArray | None:
+    arrays = []
+    variants = []
+    for variant_label in iter_variant_labels(exp, current, model, variant_mean=variant_mean):
+        path = jetlat_path(exp, current, model, variant_label)
+        if not os.path.exists(path):
+            print(f"[missing] {path}")
+            continue
+        da = xr.open_dataarray(path)
+        arrays.append(da)
+        variants.append(variant_label)
+
+    if not arrays:
+        return None
+
+    variant_coord = xr.DataArray(variants, dims="variant_label", name="variant_label")
+    return xr.concat(arrays, dim=variant_coord, join="outer")
+
+
+def open_current(
+    exp: str,
+    current: str,
+    models: list[str],
+    variant_mean: bool = False,
+) -> dict[str, xr.DataArray]:
+    data = {}
+    for model in models:
+        da = open_current_model(exp, current, model, variant_mean=variant_mean)
+        if da is None:
+            print(f"[missing current] {current} {model}")
+            continue
+        data[model] = da
+        print(f"[opened] {current} {model}: {dict(da.sizes)}")
+    return data
+
+def concat_kuroshio_ke(kuro_da: xr.DataArray, ke_da: xr.DataArray) -> xr.DataArray:
+    kuro_da, ke_da = xr.align(kuro_da, ke_da, join="inner", exclude="lon")
+    ke_lons = np.round(ke_da.lon.values.astype(float), 6)
+    kuro_lons = np.round(kuro_da.lon.values.astype(float), 6)
+    kuro_unique = kuro_da.isel(lon=~np.isin(kuro_lons, ke_lons))
+    return xr.concat([kuro_unique, ke_da], dim="lon").sortby("lon")
+
+
+def concat_current_dicts(
+    dict_kuroshio_lat: dict[str, xr.DataArray],
+    dict_ke_lat: dict[str, xr.DataArray],
+) -> dict[str, xr.DataArray]:
+    jetconcat_lat = {}
+    for model in sorted(set(dict_kuroshio_lat) & set(dict_ke_lat)):
+        common_variants = np.intersect1d(
+            dict_kuroshio_lat[model].variant_label.values,
+            dict_ke_lat[model].variant_label.values,
+        )
+        if len(common_variants) == 0:
+            print(f"[skip] {model}: no common variant between Kuroshio and KE")
+            continue
+
+        kuro_da = dict_kuroshio_lat[model].sel(variant_label=common_variants)
+        ke_da = dict_ke_lat[model].sel(variant_label=common_variants)
+        jetconcat_lat[model] = concat_kuroshio_ke(kuro_da, ke_da)
+        print(f"[concat] {model}: {dict(jetconcat_lat[model].sizes)}")
+    return jetconcat_lat
