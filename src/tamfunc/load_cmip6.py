@@ -111,20 +111,26 @@ def open_cmip6regrid_variants(
     exp: str = "hist-1950",
     table: str = "Omon",
     root: Path = ROOT,
-) -> dict[str, xr.DataArray]:
+) -> xr.DataArray:
     base = root / exp / table / var / model
-    return {
-        variant_dir.name: open_cmip6regrid(
-            model=model,
-            var=var,
-            grid=grid,
-            exp=exp,
-            table=table,
-            root=root,
-            variant_label=variant_dir.name,
+    arrays = []
+    variants = []
+    for variant_dir in original_variant_dirs(base):
+        arrays.append(
+            open_cmip6regrid(
+                model=model,
+                var=var,
+                grid=grid,
+                exp=exp,
+                table=table,
+                root=root,
+                variant_label=variant_dir.name,
+            )
         )
-        for variant_dir in original_variant_dirs(base)
-    }
+        variants.append(variant_dir.name)
+
+    variant_coord = xr.DataArray(variants, dims="variant_label", name="variant_label")
+    return xr.concat(arrays, dim=variant_coord, join="outer")
 
 
 def open_cmip6regrid_many(
