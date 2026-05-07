@@ -141,7 +141,6 @@ def open_cmip6regrid_many(
     table: str = "Omon",
     root: Path = ROOT,
     variant_label: str | None = None,
-    prefer_variant_mean: bool = True,
 ) -> dict[str, xr.DataArray]:
     return {
         model: open_cmip6regrid(
@@ -152,7 +151,28 @@ def open_cmip6regrid_many(
             table=table,
             root=root,
             variant_label=variant_label,
-            prefer_variant_mean=prefer_variant_mean,
+            prefer_variant_mean=True,
+        )
+        for model in models
+    }
+
+
+def open_cmip6regrid_variants_many(
+    models: list[str],
+    var: str = DEFAULT_VAR,
+    grid: str = "r360x180",
+    exp: str = "hist-1950",
+    table: str = "Omon",
+    root: Path = ROOT,
+) -> dict[str, xr.DataArray]:
+    return {
+        model: open_cmip6regrid_variants(
+            model=model,
+            var=var,
+            grid=grid,
+            exp=exp,
+            table=table,
+            root=root,
         )
         for model in models
     }
