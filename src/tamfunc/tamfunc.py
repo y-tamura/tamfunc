@@ -228,6 +228,7 @@ def lag_eff_dof(idx1,idx2,lag):
         r2 = lag_corr_r(idx2[:lag],idx2[:lag],1)
     return len(idx1)*(1-r1*r2)/(1+r1*r2)
 
+import warnings
 def xr_eff_dof_hrz(idx1,da2,dim='time'):
     """_summary_
 
@@ -242,8 +243,13 @@ def xr_eff_dof_hrz(idx1,da2,dim='time'):
     # r1 = lag_corr_r(idx1,idx1,1)
     # v2 = da2.values
     # r2 = np.sum(v2[:-1]*v2[1:],axis=0)/np.sqrt(np.sum(v2[:-1]**2,axis=0)*np.sum(v2[1:]**2,axis=0))
-    r1=xr.corr(idx1,idx1.shift({dim:1}),dim)
-    r2=xr.corr(da2,da2.shift({dim:1}),dim)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Degrees of freedom <= 0 for slice."
+        )
+        r1=xr.corr(idx1,idx1.shift({dim:1}),dim)
+        r2=xr.corr(da2,da2.shift({dim:1}),dim)
     dof_da = len(idx1[dim])*(1-r1*r2)/(1+r1*r2)
     # dof_da = xr.DataArray(dof, coords = da2[0].coords)
     return dof_da
