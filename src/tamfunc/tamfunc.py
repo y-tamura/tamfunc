@@ -141,20 +141,26 @@ def lag_linreg_3D(x, y, dof,lagx=0, lagy=0):
     return slope, tstats
 
 def xr_regression(x_da,y_da,dof_da,dim='time',xr_out=False,tval_out=True):
-    slope = xr.cov(x_da,y_da,dim=dim,ddof=0)/x_da.var(dim)
     
-    intercept = y_da.mean(dim)-x_da.mean(dim)*slope
-    rss = ((y_da-(slope*x_da+intercept))**2).sum(dim)
-    if tval_out:
-        if xr_out:
-            return slope, tval(slope,rss,x_da,dof_da)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Degrees of freedom <= 0 for slice."
+        )
+        slope = xr.cov(x_da,y_da,dim=dim,ddof=0)/x_da.var(dim)
+        
+        intercept = y_da.mean(dim)-x_da.mean(dim)*slope
+        rss = ((y_da-(slope*x_da+intercept))**2).sum(dim)
+        if tval_out:
+            if xr_out:
+                return slope, tval(slope,rss,x_da,dof_da)
+            else:
+                return slope.values, tval(slope,rss,x_da,dof_da).values
         else:
-            return slope.values, tval(slope,rss,x_da,dof_da).values
-    else:
-        if xr_out:
-            return slope
-        else:
-            return slope.values
+            if xr_out:
+                return slope
+            else:
+                return slope.values
 
 def lag_corr_r(da1,da2,lag):
     """_summary_
