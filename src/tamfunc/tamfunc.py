@@ -141,20 +141,26 @@ def lag_linreg_3D(x, y, dof,lagx=0, lagy=0):
     return slope, tstats
 
 def xr_regression(x_da,y_da,dof_da,dim='time',xr_out=False,tval_out=True):
-    slope = xr.cov(x_da,y_da,dim=dim,ddof=0)/x_da.var(dim)
     
-    intercept = y_da.mean(dim)-x_da.mean(dim)*slope
-    rss = ((y_da-(slope*x_da+intercept))**2).sum(dim)
-    if tval_out:
-        if xr_out:
-            return slope, tval(slope,rss,x_da,dof_da)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Degrees of freedom <= 0 for slice."
+        )
+        slope = xr.cov(x_da,y_da,dim=dim,ddof=0)/x_da.var(dim)
+        
+        intercept = y_da.mean(dim)-x_da.mean(dim)*slope
+        rss = ((y_da-(slope*x_da+intercept))**2).sum(dim)
+        if tval_out:
+            if xr_out:
+                return slope, tval(slope,rss,x_da,dof_da)
+            else:
+                return slope.values, tval(slope,rss,x_da,dof_da).values
         else:
-            return slope.values, tval(slope,rss,x_da,dof_da).values
-    else:
-        if xr_out:
-            return slope
-        else:
-            return slope.values
+            if xr_out:
+                return slope
+            else:
+                return slope.values
 
 def lag_corr_r(da1,da2,lag):
     """_summary_
@@ -228,6 +234,7 @@ def lag_eff_dof(idx1,idx2,lag):
         r2 = lag_corr_r(idx2[:lag],idx2[:lag],1)
     return len(idx1)*(1-r1*r2)/(1+r1*r2)
 
+import warnings
 def xr_eff_dof_hrz(idx1,da2,dim='time'):
     """_summary_
 
@@ -242,8 +249,13 @@ def xr_eff_dof_hrz(idx1,da2,dim='time'):
     # r1 = lag_corr_r(idx1,idx1,1)
     # v2 = da2.values
     # r2 = np.sum(v2[:-1]*v2[1:],axis=0)/np.sqrt(np.sum(v2[:-1]**2,axis=0)*np.sum(v2[1:]**2,axis=0))
-    r1=xr.corr(idx1,idx1.shift({dim:1}),dim)
-    r2=xr.corr(da2,da2.shift({dim:1}),dim)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Degrees of freedom <= 0 for slice."
+        )
+        r1=xr.corr(idx1,idx1.shift({dim:1}),dim)
+        r2=xr.corr(da2,da2.shift({dim:1}),dim)
     dof_da = len(idx1[dim])*(1-r1*r2)/(1+r1*r2)
     # dof_da = xr.DataArray(dof, coords = da2[0].coords)
     return dof_da
