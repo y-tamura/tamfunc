@@ -84,8 +84,13 @@ def red_power_spectrum(timeseries,deltat,freq):
     var_w = np.var(timeseries).values*(1-r1**2)
     return 2*deltat*var_w/(1+r1**2-2*r1*np.cos(2*np.pi*freq*deltat))
 def red_conf_int(red_power,dof,alpha):
-    # from scipy import stats
-    return dof*red_power/stats.chi2.ppf(alpha/2,df=dof)
+    """Return the upper red-noise significance level.
+
+    For a spectrum estimate under the AR(1) red-noise null hypothesis,
+    psd / red_power is assumed to follow chi2(dof) / dof.  The returned
+    curve is the one-sided (1 - alpha) upper threshold.
+    """
+    return red_power*stats.chi2.ppf(1-alpha,df=dof)/dof
 def psd_confint_chi2(psd,dof,alpha):
     upper=dof*psd/stats.chi2.ppf(alpha/2,df=dof)
     lower=dof*psd/stats.chi2.ppf(1-alpha/2,df=dof)
