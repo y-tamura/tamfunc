@@ -260,17 +260,18 @@ def xr_eff_dof_hrz(idx1,da2,dim='time'):
     # dof_da = xr.DataArray(dof, coords = da2[0].coords)
     return dof_da
 
+def idx_lagdofs(idx1,idx2,lagmin,lagmax,lagint=1):
+    dofs = np.arange(lagmin,lagmax+lagint,lagint,dtype=float)
+    for i,lag in enumerate(range(lagmin,lagmax+lagint,lagint)):
+        dofs[i] = lag_eff_dof(idx1,idx2,lag)
+    return dofs
+
 def idx_lagcorr(idx1,idx2,lagmin,lagmax,lagint=1):
     rs = np.arange(lagmin,lagmax+lagint,lagint,dtype=float)
     for i,lag in enumerate(range(lagmin,lagmax+lagint,lagint)):
         rs[i] = lag_corr_r(idx1,idx2,lag)
     return rs
 
-def idx_lagdofs(idx1,idx2,lagmin,lagmax,lagint=1):
-    dofs = np.arange(lagmin,lagmax+lagint,lagint,dtype=float)
-    for i,lag in enumerate(range(lagmin,lagmax+lagint,lagint)):
-        dofs[i] = lag_eff_dof(idx1,idx2,lag)
-    return dofs
 
 def xr_idx_lagcorr(x,y,lagmin,lagmax,lagint=1):
     """calculate lag-correlation b/w xarray.DataArrays
