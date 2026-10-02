@@ -34,7 +34,7 @@ def xr_lanczos_lowpass(x,cutoff_period,num_weights,dim="time"):
     """``lanczos_lowpass`` applied along ``dim``, broadcasting over any other dimensions
     (e.g. a full ``(time, lat, lon)`` field), via ``apply_ufunc``.
     """
-    return xr.apply_ufunc(
+    filtered = xr.apply_ufunc(
         lanczos_lowpass,
         x,
         input_core_dims=[[dim]],
@@ -44,6 +44,7 @@ def xr_lanczos_lowpass(x,cutoff_period,num_weights,dim="time"):
         output_dtypes=[np.float64],
         kwargs={"cutoff_period":cutoff_period,"num_weights":num_weights},
     )
+    return filtered.transpose(*x.dims)
 
 
 def lowpass_filter(var,ww,cutoff_period,npoint=1,dim='time'):
