@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import xarray as xr
 
@@ -151,13 +153,18 @@ def xr_auto_corr(x,max_lag,dim="time"):
     return result.assign_coords(lag=np.arange(max_lag+1))
 
 
-def eff_dof(x,y,max_lag=None):
+def eff_dof4corr(x,y,max_lag=None):
     """Effective number of independent pairs for a cross-correlation of ``x``, ``y``.
 
     Bretherton et al. (1999), eq. 30: N_eff = N / sum_{k=-(N-1)}^{N-1} rho_x(k) rho_y(k),
     approximated here by truncating the lag sum at ``max_lag`` (default N/5, a common
     rule of thumb) once the product of the two autocorrelation functions becomes
     negligible.
+
+    The null hypothesis assumes x and y are independent as entire processes,
+    not merely uncorrelated at zero lag. Each series may be autocorrelated.
+    Inputs should be stationary and regularly sampled. This is not an estimator
+    for the uncertainty of a mean; use eff_dof4mean for that purpose.
 
     Parameters
     ----------
@@ -169,7 +176,8 @@ def eff_dof(x,y,max_lag=None):
     Returns
     -------
     float
-        Effective sample size, capped at ``min(len(x), len(y))``.
+        Effective sample size, capped at ``min(len(x), len(y))``. This is not
+        the Student-t degrees of freedom (approximately N_eff - 2 for correlation).
     """
     n = min(x.size,y.size)
     if max_lag is None:
@@ -182,10 +190,13 @@ def eff_dof(x,y,max_lag=None):
     return float(min(n,n/denom))
 
 
-def xr_eff_dof(x,y,max_lag=120,dim="time"):
-    """``eff_dof`` applied along ``dim``, broadcasting over any other dimensions.
+def xr_eff_dof4corr(x,y,max_lag=120,dim="time"):
+    """``eff_dof4corr`` applied along ``dim``, broadcasting over any other dimensions.
 
-    Unlike a direct ``apply_ufunc`` wrap of ``eff_dof``, ``rho_x`` is computed once via
+    Assumes x and y are independent as entire processes under the null;
+    autocorrelation within either series is allowed. See eff_dof4corr.
+
+    Unlike a direct ``apply_ufunc`` wrap of ``eff_dof4corr``, ``rho_x`` is computed once via
     ``xr_auto_corr(x, ...)`` instead of once per broadcast point (e.g. per lat/lon),
     which matters when ``x`` has no extra dimensions beyond ``dim`` (e.g. a reference
     index) and ``y`` is a full 3-D field: that redundant recomputation roughly doubled
@@ -197,7 +208,7 @@ def xr_eff_dof(x,y,max_lag=120,dim="time"):
         Input time series along ``dim``; either may carry extra dimensions
         (e.g. ``lat``, ``lon``) that are broadcast over.
     max_lag : int, optional
-        Lag at which to truncate the sum (see ``eff_dof``).
+        Lag at which to truncate the sum (see ``eff_dof4corr``).
     dim : str, optional
         Dimension along which the effective sample size is calculated.
 
@@ -215,3 +226,88 @@ def xr_eff_dof(x,y,max_lag=120,dim="time"):
     denom = xr.where(denom>1.0,denom,1.0)  # a negative/near-zero sum would only inflate N_eff past N
     n_eff = n/denom
     return xr.where(n_eff<n,n_eff,float(n))
+
+
+
+def eff_dof4mean(x,max_lag=None,cap_at_n=True):
+    """Effective sample size for the mean of a stationary, regular 1-D series.
+
+    Estimate N_eff = N / (1 + 2 * sum(rho[k], k=1..max_lag)). The existing
+    auto_corr uses N-normalized autocovariances, which already contain the
+    finite-record factor (1-k/N) relative to overlap-normalized estimates;
+    do not apply that factor a second time. No detrending or deseasonalization
+    is performed. Selected, nonconsecutive months must not be treated as a
+    regularly sampled series.
+
+    Parameters
+    ----------
+    x : array_like
+        One-dimensional time series. Missing/nonfinite values and constant
+        series return NaN; dropping gaps would change the sampling interval.
+    max_lag : int, optional
+        Truncate the autocorrelation sum at this lag, in sampling intervals.
+        Defaults to max(1, N//5). Must be in [0, N-1]. Choose a cutoff after
+        physical correlations decay but before noisy tail estimates dominate.
+        Summing all lags of a demeaned sample can cause cancellation.
+    cap_at_n : bool, optional
+        Default True conservatively caps N_eff at N, as in eff_dof4corr.
+        False permits N_eff > N for negative autocorrelation; a nonpositive
+        estimated denominator then returns NaN rather than an invalid size.
+
+    Returns
+    -------
+    float
+        Effective sample size for SE(mean) approximately std(x)/sqrt(N_eff),
+        not Student-t degrees of freedom. Using N_eff-1 for a one-sample test
+        is an approximation, not an exact t distribution under autocorrelation.
+
+    References
+    ----------
+    https://mc-stan.org/docs/reference-manual/analysis.html
+    (Effective sample size; this function uses a fixed lag cutoff.)
+    """
+    x = np.asarray(x,dtype=np.float64)
+    n = x.size
+    if max_lag is None:
+        max_lag = max(1,n//5)
+    if not np.isfinite(x).all() or np.all(x == x[0]):
+        return float("nan")
+    rho = auto_corr(x,max_lag)
+    denom = 1.0 + 2.0*np.sum(rho[1:])
+    if not np.isfinite(denom):
+        return float("nan")
+    if cap_at_n:
+        denom = max(denom,1.0)
+    elif denom <= 0:
+        return float("nan")
+    return float(n/denom)
+
+
+def xr_eff_dof4mean(x,max_lag=None,dim="time",cap_at_n=True):
+    """Apply eff_dof4mean along dim, preserving other coordinates and laziness.
+
+    x is a regularly sampled xarray.DataArray; see eff_dof4mean for assumptions,
+    the lag cutoff, missing-data policy, and the optional conservative N cap.
+    Dask-backed inputs must have a single chunk along dim (e.g. chunk(time=-1));
+    spatial dimensions may be chunked freely. Returns effective sample size,
+    not Student-t degrees of freedom, with the sample dimension removed.
+    """
+    return xr.apply_ufunc(
+        eff_dof4mean, x, input_core_dims=[[dim]], output_core_dims=[[]],
+        vectorize=True, dask="parallelized", output_dtypes=[np.float64],
+        kwargs={"max_lag":max_lag,"cap_at_n":cap_at_n},
+    )
+
+
+def eff_dof(x,y,max_lag=None):
+    """Deprecated correlation-only alias; use eff_dof4corr."""
+    warnings.warn("eff_dof is correlation-only; use eff_dof4corr (or eff_dof4mean for a mean)",
+                  DeprecationWarning,stacklevel=2)
+    return eff_dof4corr(x,y,max_lag=max_lag)
+
+
+def xr_eff_dof(x,y,max_lag=120,dim="time"):
+    """Deprecated correlation-only alias; use xr_eff_dof4corr."""
+    warnings.warn("xr_eff_dof is correlation-only; use xr_eff_dof4corr (or xr_eff_dof4mean for a mean)",
+                  DeprecationWarning,stacklevel=2)
+    return xr_eff_dof4corr(x,y,max_lag=max_lag,dim=dim)

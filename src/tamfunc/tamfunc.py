@@ -333,15 +333,49 @@ def ppfs_idxcorr(dofs,alpha=0.95):
 def tval(coef_da,rss,x_arr,dof):
     return coef_da/np.sqrt(rss/(dof-2)/np.sum((x_arr-x_arr.mean())**2)) 
 
-def xr_tscore(x_sample,mu=0,dim="time"):
+def _tscore_sample_size(sample,dof,dim):
+    """Validate coordinate alignment without aligning independent sample times."""
+    if dof is None:
+        return len(sample[dim])
+    if isinstance(dof,xr.DataArray):
+        if not set(dof.dims).issubset(set(sample.dims)-{dim}):
+            raise ValueError(f"dof dimensions must be sample dimensions other than {dim!r}")
+        xr.align(sample,dof,join="exact",exclude={dim})
+    elif not np.isscalar(dof):
+        raise TypeError("dof must be a scalar or an xarray.DataArray")
+    return dof
+
+def xr_tscore(x_sample,mu=0,dim="time",dof=None):
+    """One-sample t score with an optional effective sample size.
+
+    dof : scalar or xarray.DataArray, optional
+        Effective sample count, before subtracting 1 for the reference
+        t-distribution degrees of freedom. Array dimensions must be a subset
+        of x_sample dimensions excluding dim, with matching coordinates.
+        Defaults to len(x_sample[dim]); sample std still uses ddof=1.
+    """
+    n=_tscore_sample_size(x_sample,dof,dim)
     xmean=x_sample.mean(dim)
     s=x_sample.std(dim,ddof=1)
-    return (xmean-mu)/(s/np.sqrt(len(x_sample[dim])))
+    return (xmean-mu)/(s/np.sqrt(n))
 
-def xr_tscore_diff(x1_sample,x2_sample,mu1=0,mu2=0,dim="time"):
+def xr_tscore_diff(x1_sample,x2_sample,mu1=0,mu2=0,dim="time",dof1=None,dof2=None):
+    """Equal-variance two-sample t score with optional effective sample sizes.
+
+    dof1, dof2 : scalar or xarray.DataArray, optional
+        Effective sample counts for the respective samples, before subtracting
+        2 from their sum for the reference t-distribution degrees of freedom.
+        Each defaults independently to len(sample[dim]). Array dimensions must
+        be sample dimensions other than dim, with matching coordinates.
+        Counts replace n1/n2 in both pooled-variance weights and standard error;
+        individual sample variances retain ddof=1. This is an effective-count
+        approximation, not an exact t test for autocorrelated samples.
+    """
+    n1=_tscore_sample_size(x1_sample,dof1,dim)
+    n2=_tscore_sample_size(x2_sample,dof2,dim)
+    x1_sample,x2_sample=xr.align(x1_sample,x2_sample,join="exact",exclude={dim})
     x1mean=x1_sample.mean(dim)
     x2mean=x2_sample.mean(dim)
-    n1=len(x1_sample[dim]);n2=len(x2_sample[dim])
     s=np.sqrt(((n1-1)*x1_sample.var(dim,ddof=1)+(n2-1)*x2_sample.var(dim,ddof=1))/(n1+n2-2))
     return (x1mean-x2mean-mu1+mu2)/(s*np.sqrt(1/n1+1/n2))
 
