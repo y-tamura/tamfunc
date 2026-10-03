@@ -1,6 +1,7 @@
 """Effective sample size: statistical behavior and NumPy/xarray parity."""
 import unittest
 import warnings
+from unittest.mock import patch
 
 import numpy as np
 import xarray as xr
@@ -42,13 +43,39 @@ class EffectiveSampleSizeTests(unittest.TestCase):
     def test_negative_correlation_and_invalid_data(self):
         x = np.tile([1.,-1.],100)
         self.assertEqual(tamcorr.eff_dof4mean(x,2),len(x))
-        self.assertGreater(tamcorr.eff_dof4mean(x,2,cap_at_n=False),len(x))
-        self.assertTrue(np.isnan(tamcorr.eff_dof4mean(x,1,cap_at_n=False)))
+        self.assertEqual(tamcorr.eff_dof4mean(x,2,cap_at_n=False),len(x))
+        self.assertEqual(tamcorr.eff_dof4mean(x,1,cap_at_n=False),len(x))
         for x in [np.ones(20),np.full(20,np.nan),np.array([0.,1.,np.inf])]:
             self.assertTrue(np.isnan(tamcorr.eff_dof4mean(x,1)))
         for x,lag in [([1],0),([[1,2]],0),([1,2],2),([1,2],-1),([1,2],1.5)]:
             with self.assertRaises(ValueError):
                 tamcorr.eff_dof4mean(x,lag)
+
+    def test_full_acf_then_first_nonpositive_cutoff(self):
+        x = np.arange(20.)
+        # Later positive values must not be resumed after zero/negative lags.
+        for rho, retained in [([1., .5, 0., .4], .5),
+                              ([1., .5, -.2, .4], .5),
+                              ([1., -.1, .3, .4], 0.),
+                              ([1., .5, .3, .2], 1.),
+                              ([1.], 0.)]:
+            with self.subTest(rho=rho):
+                with patch.object(tamcorr, 'auto_corr', return_value=np.array(rho)) as acf:
+                    actual = tamcorr.eff_dof4mean(x, max_lag=len(rho)-1)
+                    acf.assert_called_once_with(x, len(rho)-1)
+                self.assertAlmostEqual(actual, len(x)/(1+2*retained))
+
+    def test_xarray_pointwise_cutoffs(self):
+        x = xr.DataArray(np.arange(60.).reshape(3,20), dims=['lat','time'],
+                         coords={'lat':[20,30,40]})
+        acfs = [np.array([1.,-.1,.2,.3]), np.array([1.,.5,0.,.3]),
+                np.array([1.,.5,.3,.2])]
+        with patch.object(tamcorr, 'auto_corr', side_effect=acfs) as acf:
+            result = tamcorr.xr_eff_dof4mean(x,max_lag=3)
+            self.assertEqual(acf.call_count,3)
+            self.assertTrue(all(call.args[1] == 3 for call in acf.call_args_list))
+        np.testing.assert_allclose(result,[20.,10.,20/3])
+        xr.testing.assert_equal(result.lat,x.lat)
 
     def test_correlation_formula_and_compatibility(self):
         rng = np.random.default_rng(99)

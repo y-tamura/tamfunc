@@ -232,7 +232,9 @@ def xr_eff_dof4corr(x,y,max_lag=120,dim="time"):
 def eff_dof4mean(x,max_lag=None,cap_at_n=True):
     """Effective sample size for the mean of a stationary, regular 1-D series.
 
-    Estimate N_eff = N / (1 + 2 * sum(rho[k], k=1..max_lag)). The existing
+    Compute all autocorrelations through max_lag, then sum positive lags only
+    up to (excluding) the first lag with rho <= 0. If none occurs, include
+    max_lag. Estimate N_eff = N / (1 + 2 * sum of retained rho). The existing
     auto_corr uses N-normalized autocovariances, which already contain the
     finite-record factor (1-k/N) relative to overlap-normalized estimates;
     do not apply that factor a second time. No detrending or deseasonalization
@@ -245,14 +247,12 @@ def eff_dof4mean(x,max_lag=None,cap_at_n=True):
         One-dimensional time series. Missing/nonfinite values and constant
         series return NaN; dropping gaps would change the sampling interval.
     max_lag : int, optional
-        Truncate the autocorrelation sum at this lag, in sampling intervals.
-        Defaults to max(1, N//5). Must be in [0, N-1]. Choose a cutoff after
-        physical correlations decay but before noisy tail estimates dominate.
-        Summing all lags of a demeaned sample can cause cancellation.
+        Maximum lag to calculate, in sampling intervals; the first nonpositive
+        autocorrelation may truncate the sum earlier. Defaults to max(1, N//5).
+        Must be an integer in [0, N-1]. A value of 0 gives N_eff = N.
     cap_at_n : bool, optional
-        Default True conservatively caps N_eff at N, as in eff_dof4corr.
-        False permits N_eff > N for negative autocorrelation; a nonpositive
-        estimated denominator then returns NaN rather than an invalid size.
+        Retained for call compatibility. The positive-prefix sum already
+        guarantees N_eff <= N, so this flag does not change finite results.
 
     Returns
     -------
@@ -264,16 +264,25 @@ def eff_dof4mean(x,max_lag=None,cap_at_n=True):
     References
     ----------
     https://mc-stan.org/docs/reference-manual/analysis.html
-    (Effective sample size; this function uses a fixed lag cutoff.)
+    (Effective sample size definition; the first-nonpositive-lag truncation
+    here is a heuristic, not Geyer's paired initial-positive-sequence method.)
     """
     x = np.asarray(x,dtype=np.float64)
     n = x.size
+    if x.ndim != 1 or n < 2:
+        raise ValueError("x must be a one-dimensional series with at least two samples")
     if max_lag is None:
         max_lag = max(1,n//5)
+    if not isinstance(max_lag,(int,np.integer)) or not 0 <= max_lag < n:
+        raise ValueError("max_lag must be an integer in [0, len(x)-1]")
     if not np.isfinite(x).all() or np.all(x == x[0]):
         return float("nan")
     rho = auto_corr(x,max_lag)
-    denom = 1.0 + 2.0*np.sum(rho[1:])
+    if not np.isfinite(rho).all():
+        return float("nan")
+    nonpositive = np.flatnonzero(rho[1:] <= 0)
+    stop = int(nonpositive[0]) + 1 if nonpositive.size else len(rho)
+    denom = 1.0 + 2.0*np.sum(rho[1:stop])
     if not np.isfinite(denom):
         return float("nan")
     if cap_at_n:
@@ -287,7 +296,8 @@ def xr_eff_dof4mean(x,max_lag=None,dim="time",cap_at_n=True):
     """Apply eff_dof4mean along dim, preserving other coordinates and laziness.
 
     x is a regularly sampled xarray.DataArray; see eff_dof4mean for assumptions,
-    the lag cutoff, missing-data policy, and the optional conservative N cap.
+    the lag cutoff and missing-data policy. Each grid point computes all lags
+    through max_lag before independently finding its first nonpositive lag.
     Dask-backed inputs must have a single chunk along dim (e.g. chunk(time=-1));
     spatial dimensions may be chunked freely. Returns effective sample size,
     not Student-t degrees of freedom, with the sample dimension removed.
